@@ -1,20 +1,28 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import './shim';
+import React, { useState } from 'react';
+import Game from './src/features/gameplay/GameScreen';
+import MainMenu from './src/features/home/MainMenuScreen';
+import Shop from './src/features/shop/ShopScreen';
 
 export default function App() {
+  const [inGame, setInGame] = useState(false);
+  const [inShop, setInShop] = useState(false);
+  // Shared state for demo
+  const [balance, setBalance] = useState("0");
+
+  if (inGame) {
+    return <Game />;
+  }
+
+  if (inShop) {
+    return <Shop onBack={() => setInShop(false)} balance={balance} />;
+  }
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <MainMenu
+      onStartGame={() => setInGame(true)}
+      onOpenShop={() => setInShop(true)}
+      onBalanceUpdate={setBalance}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
