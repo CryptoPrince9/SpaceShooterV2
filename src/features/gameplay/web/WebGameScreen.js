@@ -22,6 +22,7 @@ export default function WebGameScreen({ walletAddress, balance }) {
     const [outOfLives, setOutOfLives] = useState(false);
     const [score, setScore] = useState(0);
     const [lives, setLives] = useState(5); // Start with 5 lives
+    const livesRef = useRef(5); // Sync ref for immediate checking
     const [paused, setPaused] = useState(false);
 
     // Game state refs (don't trigger re-renders)
@@ -105,7 +106,13 @@ export default function WebGameScreen({ walletAddress, balance }) {
 
         // Game loop
         const gameLoop = (currentTime) => {
-            if (paused || gameOver) {
+            // Stop immediately if game over or out of lives
+            if (paused || gameOver || livesRef.current <= 0) {
+                if (livesRef.current <= 0 && !gameOver) {
+                    // Ensure game over state is set
+                    setGameOver(true);
+                    setOutOfLives(true);
+                }
                 state.animationId = requestAnimationFrame(gameLoop);
                 return;
             }
@@ -160,22 +167,27 @@ export default function WebGameScreen({ walletAddress, balance }) {
             }
 
             if (collisionResults.playerHit) {
-                // Player died - check lives
-                if (lives > 1) {
+                // Player died - check lives using ref for immediate sync
+                if (livesRef.current > 1) {
                     // Still have lives remaining
-                    setLives(prev => prev - 1);
+                    livesRef.current -= 1;
+                    setLives(livesRef.current);
                     // Reset player position and health
                     state.player.health = state.player.maxHealth;
                     state.player.x = SCREEN_WIDTH / 2;
                     state.player.y = SCREEN_HEIGHT - 100;
                     // Clear enemies temporarily for respawn protection
                     state.enemies = [];
-                } else {
-                    // No lives left
+                } else if (livesRef.current === 1) {
+                    // Last life lost
+                    livesRef.current = 0;
                     setLives(0);
                     setOutOfLives(true);
                     setGameOver(true);
+                    // Stop the game immediately
+                    return;
                 }
+                // If livesRef.current is already 0 or negative, do nothing (already game over)
             }
 
             // Update starfield
@@ -215,7 +227,7 @@ export default function WebGameScreen({ walletAddress, balance }) {
     }, [paused, gameOver]);
 
     const handleRestart = () => {
-        if (outOfLives) {
+        if (outOfLives || livesRef.current <= 0) {
             // Cannot restart without lives
             alert('You are out of lives! Visit the shop to purchase more.');
             return;
