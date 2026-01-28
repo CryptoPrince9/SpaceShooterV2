@@ -21,7 +21,7 @@ export default function App() {
   }
 
   if (inShop) {
-    return <Shop onBack={() => setInShop(false)} balance={balance} walletAddress={walletAddress} />;
+    return <Shop onBack={() => setInShop(false)} balance={balance} walletAddress={walletAddress} onBalanceUpdate={setBalance} />;
   }
 
   return (

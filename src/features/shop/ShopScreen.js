@@ -1,12 +1,38 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Animatable from 'react-native-animatable';
 import { SHOP_ITEMS, SHOP_CATEGORIES, getItemsByCategory } from '../../shared/constants/ShopItems';
+import {
+    purchaseItemWithXKX,
+    checkXKXBalance,
+    hasPurchasedItem,
+    getItemQuantity,
+    addLivesToSession
+} from '../../services/PurchaseService';
 
-const Shop = ({ onBack, balance, walletAddress }) => {
+const Shop = ({ onBack, balance, walletAddress, onBalanceUpdate }) => {
     const [selectedCategory, setSelectedCategory] = useState(SHOP_CATEGORIES.LIVES);
     const [purchasing, setPurchasing] = useState(null);
+    const [ownedItems, setOwnedItems] = useState({});
+    const [currentBalance, setCurrentBalance] = useState(parseFloat(balance) || 0);
+
+    useEffect(() => {
+        // Load owned items on mount
+        if (walletAddress) {
+            loadOwnedItems();
+        }
+    }, [walletAddress]);
+
+    const loadOwnedItems = () => {
+        const owned = {};
+        Object.keys(SHOP_ITEMS).forEach(itemId => {
+            if (hasPurchasedItem(walletAddress, itemId)) {
+                owned[itemId] = getItemQuantity(walletAddress, itemId);
+            }
+        });
+        setOwnedItems(owned);
+    };
 
     const handleBuyXKX = () => {
         Linking.openURL('https://heavensgatedex.vercel.app');
@@ -18,25 +44,60 @@ const Shop = ({ onBack, balance, walletAddress }) => {
             return;
         }
 
-        const userBalance = parseFloat(balance) || 0;
-        if (userBalance < item.price) {
-            alert(`Insufficient XKX balance!\n\nYou have: ${userBalance.toFixed(4)} XKX\nRequired: ${item.price} XKX\n\nClick \"Buy XKX\" to get more tokens.`);
+        if (currentBalance < item.price) {
+            alert(`Insufficient XKX balance!\n\nYou have: ${currentBalance.toFixed(4)} XKX\nRequired: ${item.price} XKX\n\nClick "Buy XKX" to get more tokens.`);
             return;
         }
 
         setPurchasing(item.id);
 
-        // Simulate purchase (replace with actual smart contract call later)
-        setTimeout(() => {
-            alert(`✅ Purchase Successful!\n\n${item.name} acquired for ${item.price} XKX\n\n(Demo mode - blockchain integration coming soon)`);
+        try {
+            // Execute blockchain transaction
+            const result = await purchaseItemWithXKX(item.id, item.price, walletAddress);
+
+            if (result.success) {
+                // Handle successful purchase
+                if (item.consumable) {
+                    // Add lives immediately
+                    const newLives = addLivesToSession(walletAddress, item.quantity);
+                    alert(
+                        `✅ Purchase Successful!\n\n` +
+                        `${item.name} acquired!\n` +
+                        `Transaction: ${result.txHash.slice(0, 10)}...${result.txHash.slice(-8)}\n\n` +
+                        `Lives added: +${item.quantity}\n` +
+                        `Total lives: ${newLives}\n\n` +
+                        `View on PolygonScan`
+                    );
+                } else {
+                    // NFT item
+                    alert(
+                        `✅ Purchase Successful!\n\n` +
+                        `${item.name} unlocked permanently!\n` +
+                        `Transaction: ${result.txHash.slice(0, 10)}...${result.txHash.slice(-8)}\n\n` +
+                        `This item is now active in your game.\n\n` +
+                        `View on PolygonScan`
+                    );
+                }
+
+                // Refresh balance and owned items
+                const newBalance = await checkXKXBalance(walletAddress);
+                setCurrentBalance(newBalance);
+                if (onBalanceUpdate) onBalanceUpdate(newBalance.toFixed(4));
+                loadOwnedItems();
+            }
+        } catch (error) {
+            console.error('Purchase error:', error);
+            alert(`❌ Purchase Failed\n\n${error.message || 'Unknown error occurred'}`);
+        } finally {
             setPurchasing(null);
-        }, 1500);
+        }
     };
 
     const renderItem = (item, index) => {
         const isPurchasing = purchasing === item.id;
-        const userBalance = parseFloat(balance) || 0;
-        const canAfford = userBalance >= item.price;
+        const canAfford = currentBalance >= item.price;
+        const isOwned = !item.consumable && ownedItems[item.id];
+        const quantity = ownedItems[item.id] || 0;
 
         return (
             <Animatable.View
@@ -66,21 +127,31 @@ const Shop = ({ onBack, balance, walletAddress }) => {
 
                     <TouchableOpacity
                         onPress={() => handlePurchase(item)}
-                        disabled={!canAfford || isPurchasing}
+                        disabled={!canAfford || isPurchasing || isOwned}
                         style={[
                             styles.buyButton,
-                            !canAfford && styles.buyButtonDisabled
+                            (!canAfford || isOwned) && styles.buyButtonDisabled
                         ]}
                     >
                         <LinearGradient
-                            colors={canAfford ? ['#00b09b', '#96c93d'] : ['#666', '#444']}
+                            colors={
+                                isOwned ? ['#666', '#444'] :
+                                    canAfford ? ['#00b09b', '#96c93d'] :
+                                        ['#666', '#444']
+                            }
                             start={[0, 0]}
                             end={[1, 0]}
                             style={styles.buyGradient}
                         >
-                            <Text style={styles.buyText}>
-                                {isPurchasing ? 'BUYING...' : canAfford ? 'BUY' : 'NEED XKX'}
-                            </Text>
+                            {isPurchasing ? (
+                                <ActivityIndicator color="white" size="small" />
+                            ) : (
+                                <Text style={styles.buyText}>
+                                    {isOwned ? `OWNED${quantity > 1 ? ` (${quantity})` : ''}` :
+                                        canAfford ? 'BUY' :
+                                            'NEED XKX'}
+                                </Text>
+                            )}
                         </LinearGradient>
                     </TouchableOpacity>
                 </View>
@@ -97,7 +168,7 @@ const Shop = ({ onBack, balance, walletAddress }) => {
             {/* Balance and Buy XKX */}
             <View style={styles.balanceContainer}>
                 <Text style={styles.balance}>
-                    Balance: <Text style={styles.balanceAmount}>{parseFloat(balance).toFixed(4)} XKX</Text>
+                    Balance: <Text style={styles.balanceAmount}>{currentBalance.toFixed(4)} XKX</Text>
                 </Text>
                 <TouchableOpacity onPress={handleBuyXKX} style={styles.buyXKXButton}>
                     <LinearGradient colors={['#FFD700', '#FFA500', '#FF8C00']} style={styles.buyXKXGradient}>
