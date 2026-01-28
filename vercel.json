@@ -1,4 +1,6 @@
 {
+    "name": "star-shooter-web3",
+    "outputDirectory": "dist",
     "rewrites": [
         {
             "source": "/(.*)",
