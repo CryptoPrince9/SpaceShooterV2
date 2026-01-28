@@ -1,13 +1,18 @@
 import './shim';
 import React, { useState } from 'react';
-import Game from './src/features/gameplay/GameScreen';
+import { Platform } from 'react-native';
 import MainMenu from './src/features/home/MainMenuScreen';
 import Shop from './src/features/shop/ShopScreen';
+
+// Platform-specific Game component
+const Game = Platform.select({
+  web: require('./src/features/gameplay/web/WebGameScreen').default,
+  default: require('./src/features/gameplay/GameScreen').default
+});
 
 export default function App() {
   const [inGame, setInGame] = useState(false);
   const [inShop, setInShop] = useState(false);
-  // Shared state for demo
   const [balance, setBalance] = useState("0");
 
   if (inGame) {
