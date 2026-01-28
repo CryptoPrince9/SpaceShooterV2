@@ -4,10 +4,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Animatable from 'react-native-animatable';
 import { getXKXBalance } from '../../shared/services/Web3Service';
 
-const MainMenu = ({ onStartGame, onOpenShop, onBalanceUpdate }) => {
+const MainMenu = ({ onStartGame, onOpenShop, onBalanceUpdate, onWalletConnect }) => {
     const [address, setAddress] = useState("");
     const [balance, setBalance] = useState("0");
     const [loading, setLoading] = useState(false);
+    const [walletConnected, setWalletConnected] = useState(false);
 
     const checkBalance = async () => {
         if (!address) return;
@@ -15,7 +16,25 @@ const MainMenu = ({ onStartGame, onOpenShop, onBalanceUpdate }) => {
         const bal = await getXKXBalance(address);
         setBalance(bal);
         if (onBalanceUpdate) onBalanceUpdate(bal);
+        if (onWalletConnect) onWalletConnect(address);
         setLoading(false);
+        setWalletConnected(true); // Mark wallet as connected after successful balance check
+    };
+
+    const handleStartGame = () => {
+        if (!walletConnected) {
+            alert('Please connect your wallet and check your XKX balance before playing!');
+            return;
+        }
+        onStartGame();
+    };
+
+    const handleOpenShop = () => {
+        if (!walletConnected) {
+            alert('Please connect your wallet and check your XKX balance before accessing the shop!');
+            return;
+        }
+        onOpenShop();
     };
 
     return (
@@ -25,30 +44,63 @@ const MainMenu = ({ onStartGame, onOpenShop, onBalanceUpdate }) => {
             </Animatable.Text>
 
             <Animatable.View animation="fadeInUp" style={styles.walletSection}>
-                <Text style={styles.label}>Polygon Wallet Address:</Text>
+                <Text style={styles.label}>Connect Polygon Wallet to Play:</Text>
                 <TextInput
                     style={styles.input}
-                    placeholder="0x..."
+                    placeholder="Enter your Polygon wallet address (0x...)"
                     placeholderTextColor="#aaa"
                     value={address}
                     onChangeText={setAddress}
                 />
-                <TouchableOpacity style={styles.button} onPress={checkBalance}>
-                    <Text style={styles.buttonText}>Check Balance</Text>
+                <TouchableOpacity
+                    style={[styles.button, !address && styles.buttonDisabled]}
+                    onPress={checkBalance}
+                    disabled={!address}
+                >
+                    <Text style={styles.buttonText}>
+                        {walletConnected ? '✓ Wallet Connected' : 'Connect Wallet'}
+                    </Text>
                 </TouchableOpacity>
 
-                <Text style={styles.balance}>XKX: {loading ? "Loading..." : balance}</Text>
+                {walletConnected && (
+                    <Text style={styles.balance}>XKX Balance: {loading ? "Loading..." : balance}</Text>
+                )}
             </Animatable.View>
 
             <Animatable.View animation="bounceIn" delay={500}>
-                <TouchableOpacity style={[styles.startButton, { marginBottom: 20 }]} onPress={onStartGame}>
-                    <LinearGradient colors={['#4c669f', '#3b5998', '#192f6a']} style={styles.gradientButton}>
-                        <Text style={styles.startButtonText}>START GAME</Text>
+                <TouchableOpacity
+                    style={[
+                        styles.startButton,
+                        { marginBottom: 20 },
+                        !walletConnected && styles.buttonDisabled
+                    ]}
+                    onPress={handleStartGame}
+                    disabled={!walletConnected}
+                >
+                    <LinearGradient
+                        colors={walletConnected ? ['#4c669f', '#3b5998', '#192f6a'] : ['#555', '#444', '#333']}
+                        style={styles.gradientButton}
+                    >
+                        <Text style={styles.startButtonText}>
+                            {walletConnected ? 'START GAME' : '🔒 CONNECT WALLET TO PLAY'}
+                        </Text>
                     </LinearGradient>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.shopButton} onPress={onOpenShop}>
-                    <Text style={styles.shopButtonText}>OPEN SHOP</Text>
+                <TouchableOpacity
+                    style={[
+                        styles.shopButton,
+                        !walletConnected && styles.shopButtonDisabled
+                    ]}
+                    onPress={handleOpenShop}
+                    disabled={!walletConnected}
+                >
+                    <Text style={[
+                        styles.shopButtonText,
+                        !walletConnected && styles.shopButtonTextDisabled
+                    ]}>
+                        {walletConnected ? 'OPEN SHOP' : '🔒 SHOP (WALLET REQUIRED)'}
+                    </Text>
                 </TouchableOpacity>
             </Animatable.View>
         </LinearGradient>
@@ -147,6 +199,16 @@ const styles = StyleSheet.create({
         color: '#e0aaff',
         fontSize: 16,
         fontWeight: 'bold'
+    },
+    buttonDisabled: {
+        opacity: 0.5
+    },
+    shopButtonDisabled: {
+        backgroundColor: 'rgba(80, 0, 80, 0.3)',
+        borderColor: '#666'
+    },
+    shopButtonTextDisabled: {
+        color: '#888'
     }
 });
 

@@ -14,13 +14,14 @@ export default function App() {
   const [inGame, setInGame] = useState(false);
   const [inShop, setInShop] = useState(false);
   const [balance, setBalance] = useState("0");
+  const [walletAddress, setWalletAddress] = useState("");
 
   if (inGame) {
-    return <Game />;
+    return <Game walletAddress={walletAddress} balance={balance} />;
   }
 
   if (inShop) {
-    return <Shop onBack={() => setInShop(false)} balance={balance} />;
+    return <Shop onBack={() => setInShop(false)} balance={balance} walletAddress={walletAddress} />;
   }
 
   return (
@@ -28,6 +29,7 @@ export default function App() {
       onStartGame={() => setInGame(true)}
       onOpenShop={() => setInShop(true)}
       onBalanceUpdate={setBalance}
+      onWalletConnect={setWalletAddress}
     />
   );
 }
