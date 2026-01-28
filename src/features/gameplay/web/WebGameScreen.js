@@ -16,10 +16,12 @@ import { spawnEnemy, shouldSpawnEnemy } from './utils/spawning';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-export default function WebGameScreen() {
+export default function WebGameScreen({ walletAddress, balance }) {
     const canvasRef = useRef(null);
     const [gameOver, setGameOver] = useState(false);
+    const [outOfLives, setOutOfLives] = useState(false);
     const [score, setScore] = useState(0);
+    const [lives, setLives] = useState(5); // Start with 5 lives
     const [paused, setPaused] = useState(false);
 
     // Game state refs (don't trigger re-renders)
@@ -158,7 +160,22 @@ export default function WebGameScreen() {
             }
 
             if (collisionResults.playerHit) {
-                setGameOver(true);
+                // Player died - check lives
+                if (lives > 1) {
+                    // Still have lives remaining
+                    setLives(prev => prev - 1);
+                    // Reset player position and health
+                    state.player.health = state.player.maxHealth;
+                    state.player.x = SCREEN_WIDTH / 2;
+                    state.player.y = SCREEN_HEIGHT - 100;
+                    // Clear enemies temporarily for respawn protection
+                    state.enemies = [];
+                } else {
+                    // No lives left
+                    setLives(0);
+                    setOutOfLives(true);
+                    setGameOver(true);
+                }
             }
 
             // Update starfield
@@ -198,6 +215,11 @@ export default function WebGameScreen() {
     }, [paused, gameOver]);
 
     const handleRestart = () => {
+        if (outOfLives) {
+            // Cannot restart without lives
+            alert('You are out of lives! Visit the shop to purchase more.');
+            return;
+        }
         setGameOver(false);
         setScore(0);
         const state = gameStateRef.current;
@@ -207,6 +229,11 @@ export default function WebGameScreen() {
         state.explosions = [];
         state.difficulty = 0;
         state.lastTime = performance.now();
+    };
+
+    const handleBackToMenu = () => {
+        // Navigate back to main menu (handled by parent App component)
+        window.location.reload();
     };
 
     return (
@@ -222,13 +249,39 @@ export default function WebGameScreen() {
                 <Text style={styles.scoreText}>Score: {score}</Text>
             </View>
 
+            <View style={styles.livesContainer}>
+                <Text style={styles.livesText}>❤️ Lives: {lives}/5</Text>
+            </View>
+
             {gameOver && (
                 <View style={styles.gameOverContainer}>
-                    <Text style={styles.gameOverText}>GAME OVER</Text>
-                    <Text style={styles.finalScoreText}>Final Score: {score}</Text>
-                    <TouchableOpacity style={styles.restartButton} onPress={handleRestart}>
-                        <Text style={styles.restartButtonText}>RESTART</Text>
-                    </TouchableOpacity>
+                    {outOfLives ? (
+                        // Out of lives - must buy more
+                        <>
+                            <Text style={styles.gameOverText}>OUT OF LIVES!</Text>
+                            <Text style={styles.finalScoreText}>Final Score: {score}</Text>
+                            <Text style={styles.livesWarning}>You need to purchase more lives to continue playing</Text>
+                            <TouchableOpacity style={styles.shopButton} onPress={handleBackToMenu}>
+                                <Text style={styles.shopButtonText}>GO TO SHOP</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+                                <Text style={styles.backButtonText}>Back to Menu</Text>
+                            </TouchableOpacity>
+                        </>
+                    ) : (
+                        // Still have lives - can restart
+                        <>
+                            <Text style={styles.gameOverText}>YOU DIED!</Text>
+                            <Text style={styles.finalScoreText}>Score: {score}</Text>
+                            <Text style={styles.livesWarning}>Lives remaining: {lives}</Text>
+                            <TouchableOpacity style={styles.restartButton} onPress={handleRestart}>
+                                <Text style={styles.restartButtonText}>CONTINUE ({lives} ❤️ LEFT)</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+                                <Text style={styles.backButtonText}>Back to Menu</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
                 </View>
             )}
         </View>
@@ -255,6 +308,20 @@ const styles = StyleSheet.create({
         textShadowOffset: { width: 0, height: 0 },
         textShadowRadius: 10
     },
+    livesContainer: {
+        position: 'absolute',
+        top: 60,
+        left: 20,
+        zIndex: 10
+    },
+    livesText: {
+        color: '#ff69b4',
+        fontSize: 24,
+        fontWeight: 'bold',
+        textShadowColor: 'rgba(255, 105, 180, 0.8)',
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 10
+    },
     gameOverContainer: {
         position: 'absolute',
         top: '40%',
@@ -275,17 +342,48 @@ const styles = StyleSheet.create({
     finalScoreText: {
         color: '#fff',
         fontSize: 28,
-        marginBottom: 30
+        marginBottom: 20
+    },
+    livesWarning: {
+        color: '#ffaa00',
+        fontSize: 18,
+        marginBottom: 25,
+        textAlign: 'center'
     },
     restartButton: {
         backgroundColor: '#00d2ff',
         paddingHorizontal: 40,
         paddingVertical: 15,
-        borderRadius: 25
+        borderRadius: 25,
+        marginBottom: 15
     },
     restartButtonText: {
         color: '#000',
         fontSize: 20,
         fontWeight: 'bold'
+    },
+    shopButton: {
+        backgroundColor: '#9c27b0',
+        paddingHorizontal: 40,
+        paddingVertical: 15,
+        borderRadius: 25,
+        marginBottom: 15
+    },
+    shopButtonText: {
+        color: '#fff',
+        fontSize: 20,
+        fontWeight: 'bold'
+    },
+    backButton: {
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        paddingHorizontal: 30,
+        paddingVertical: 12,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#fff'
+    },
+    backButtonText: {
+        color: '#fff',
+        fontSize: 16
     }
 });
